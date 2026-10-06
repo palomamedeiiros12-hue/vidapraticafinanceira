@@ -1,0 +1,10 @@
+{
+  "name": "Vida Prática e Financeira",
+  "short_name": "Vida PF",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#1d4ed8",
+  "description": "Organize sua rotina, controle seu dinheiro e acompanhe sua semana.",
+  "icons": []
+}

@@ -1,5 +1,5 @@
 const CACHE_NAME = 'vida-pratica-financeira-v1';
-const APP_SHELL = ['./', './index.html', './login.html', './cadastro.html', './dashboard.html', './financeiro.html', './planejamento.html', './perfil.html', './css/style.css', './css/responsive.css', './js/app.js', './js/core.js', './js/auth.js', './js/dashboard.js', './js/financeiro.js', './js/planejamento.js', './js/perfil.js', './js/supabase.js'];
+const APP_SHELL = ['./', './index.html', './login.html', './cadastro.html', './dashboard.html', './financeiro.html', './planejamento.html', './perfil.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

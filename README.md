@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Vida Prática e Financeira
 
 Aplicação MVP em Vite com HTML, CSS e JavaScript para organizar rotina, controlar finanças e acompanhar tarefas.
@@ -36,6 +35,22 @@ Aplicação MVP em Vite com HTML, CSS e JavaScript para organizar rotina, contro
 1. npm install
 2. npm run dev
 3. abrir a URL informada pelo Vite
+
+Para validar os testes e gerar os arquivos de produção:
+
+```sh
+npm test
+npm run build
+```
+
+## Deploy
+
+O deploy é feito pelo GitHub Actions para o GitHub Pages a cada push na branch
+`main`. O site usa o caminho do repositório:
+
+https://palomamedeiiros12-hue.github.io/vidapraticafinanceira/
+
+O fluxo publica a pasta `dist` e executa os testes antes do build.
 
 ## Configuração do Supabase
 
@@ -83,6 +98,3 @@ create table tasks (
 ## RLS
 
 Políticas podem ser configuradas por usuário autenticado para permitir apenas leitura, inserção, atualização e exclusão dos próprios registros.
-=======
-# vidapraticafinanceira
->>>>>>> 1c674a83f90bab1d92a5b711fe6a98893b681688
