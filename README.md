@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Vida Prática e Financeira
 
 Aplicação MVP em Vite com HTML, CSS e JavaScript para organizar rotina, controlar finanças e acompanhar tarefas.
@@ -82,3 +83,6 @@ create table tasks (
 ## RLS
 
 Políticas podem ser configuradas por usuário autenticado para permitir apenas leitura, inserção, atualização e exclusão dos próprios registros.
+=======
+# vidapraticafinanceira
+>>>>>>> 1c674a83f90bab1d92a5b711fe6a98893b681688
