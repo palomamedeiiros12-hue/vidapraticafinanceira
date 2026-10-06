@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perfil | Vida Prática e Financeira</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/responsive.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="container app-header-inner">
+          <div>
+            <p class="eyebrow">Minha conta</p>
+            <h1>Meu perfil</h1>
+          </div>
+          <button class="btn btn-ghost" data-logout type="button">Sair</button>
+        </div>
+      </header>
+
+      <nav class="bottom-nav" aria-label="Menu principal">
+        <a href="./dashboard.html" class="nav-item" data-nav>Início</a>
+        <a href="./financeiro.html" class="nav-item" data-nav>Finanças</a>
+        <a href="./planejamento.html" class="nav-item" data-nav>Semana</a>
+        <a href="./perfil.html" class="nav-item active" data-nav>Perfil</a>
+      </nav>
+
+      <main class="container page-body profile-page">
+        <section class="card profile-summary">
+          <div class="profile-avatar" aria-hidden="true" id="profile-avatar">A</div>
+
+          <div class="profile-summary-copy">
+            <p class="eyebrow">Conta ativa</p>
+            <h2 id="profile-greeting">Usuário</h2>
+            <p id="profile-email-label" class="supporting-text">usuario@email.com</p>
+          </div>
+
+          <div class="profile-stats" aria-label="Resumo do perfil">
+            <div class="mini-stat">
+              <span>Saldo</span>
+              <strong id="profile-balance">R$ 0,00</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Objetivos</span>
+              <strong id="profile-goals">0 ativos</strong>
+            </div>
+          </div>
+        </section>
+
+        <div class="profile-grid">
+          <section class="card form-card">
+            <div class="panel-header">
+              <h2>Dados pessoais</h2>
+            </div>
+
+            <form id="profile-form" class="stack-form" novalidate>
+              <div class="field">
+                <label for="profile-name">Nome</label>
+                <input id="profile-name" name="name" type="text" required />
+              </div>
+
+              <div class="field">
+                <label for="profile-email">E-mail</label>
+                <input id="profile-email" name="email" type="email" required />
+              </div>
+
+              <button type="submit" class="btn btn-primary full-width">Salvar perfil</button>
+              <p id="profile-message" class="form-message" aria-live="polite"></p>
+            </form>
+          </section>
+
+          <section class="card form-card">
+            <div class="panel-header">
+              <h2>Alterar senha</h2>
+            </div>
+
+            <form id="password-form" class="stack-form" novalidate>
+              <div class="field">
+                <label for="new-password">Nova senha</label>
+                <input id="new-password" name="password" type="password" placeholder="Nova senha" required />
+              </div>
+
+              <button type="submit" class="btn btn-secondary full-width">Atualizar senha</button>
+              <p id="password-message" class="form-message" aria-live="polite"></p>
+            </form>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./js/perfil.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

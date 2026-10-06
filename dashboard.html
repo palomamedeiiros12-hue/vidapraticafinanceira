@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | Vida Prática e Financeira</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/responsive.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="container app-header-inner">
+          <div>
+            <p class="eyebrow">Painel pessoal</p>
+            <h1>Olá, <span data-user-name>Usuário</span>!</h1>
+          </div>
+          <button class="btn btn-ghost" data-logout type="button">Sair</button>
+        </div>
+      </header>
+
+      <nav class="bottom-nav" aria-label="Menu principal">
+        <a href="./dashboard.html" class="nav-item active" data-nav>Início</a>
+        <a href="./financeiro.html" class="nav-item" data-nav>Finanças</a>
+        <a href="./planejamento.html" class="nav-item" data-nav>Semana</a>
+        <a href="./perfil.html" class="nav-item" data-nav>Perfil</a>
+      </nav>
+
+      <main class="container page-body">
+        <section class="summary-grid">
+          <article class="card info-card">
+            <p class="card-label">Minha semana</p>
+            <h2 id="week-summary">0 de 0 tarefas concluídas</h2>
+            <a href="./planejamento.html" class="text-link">Ver semana</a>
+          </article>
+
+          <article class="card info-card">
+            <p class="card-label">Minhas finanças</p>
+            <h2 id="dashboard-balance">R$ 0,00</h2>
+            <div class="inline-stats">
+              <span>Receitas: <strong id="dashboard-income">R$ 0,00</strong></span>
+              <span>Despesas: <strong id="dashboard-expenses">R$ 0,00</strong></span>
+            </div>
+            <a href="./financeiro.html" class="text-link">Ver finanças</a>
+          </article>
+        </section>
+
+        <section class="summary-kpis" aria-label="Indicadores do mês">
+          <div class="kpi-chip success">
+            <span>Meta da semana</span>
+            <strong>76%</strong>
+          </div>
+          <div class="kpi-chip neutral">
+            <span>Saldo atual</span>
+            <strong id="dashboard-balance-chip">R$ 0,00</strong>
+          </div>
+          <div class="kpi-chip info">
+            <span>Próximas ações</span>
+            <strong id="dashboard-actions-count">0 itens</strong>
+          </div>
+        </section>
+
+        <section class="card highlight-panel">
+          <div class="panel-header">
+            <div>
+              <p class="card-label">Resumo do mês</p>
+              <h2>Você está em boa trajetória</h2>
+            </div>
+            <span class="status-pill ok">Em dia</span>
+          </div>
+          <div class="progress-track" aria-label="Progresso do mês">
+            <span style="width: 76%"></span>
+          </div>
+          <div class="progress-meta">
+            <span>Progresso geral</span>
+            <strong>76%</strong>
+          </div>
+        </section>
+
+        <section class="action-row">
+          <a class="btn btn-primary" href="./financeiro.html?mode=receita">+ Receita</a>
+          <a class="btn btn-primary" href="./financeiro.html?mode=despesa">+ Despesa</a>
+          <a class="btn btn-secondary" href="./planejamento.html">Planejar semana</a>
+          <a class="btn btn-secondary" href="./financeiro.html">Ver finanças</a>
+        </section>
+
+        <section class="card dashboard-panel">
+          <div class="panel-header">
+            <h2>Próximas tarefas</h2>
+          </div>
+          <ul id="dashboard-tasks" class="task-list compact" aria-live="polite"></ul>
+        </section>
+
+        <section class="card dashboard-panel">
+          <div class="panel-header">
+            <h2>Dica financeira da semana</h2>
+          </div>
+          <p class="quote">Pequenas mudanças consistentes produzem resultados melhores.</p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/dashboard.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

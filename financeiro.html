@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finanças | Vida Prática e Financeira</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/responsive.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="container app-header-inner">
+          <div>
+            <p class="eyebrow">Controle financeiro</p>
+            <h1>Minhas finanças</h1>
+          </div>
+          <button class="btn btn-ghost" data-logout type="button">Sair</button>
+        </div>
+      </header>
+
+      <nav class="bottom-nav" aria-label="Menu principal">
+        <a href="./dashboard.html" class="nav-item" data-nav>Início</a>
+        <a href="./financeiro.html" class="nav-item active" data-nav>Finanças</a>
+        <a href="./planejamento.html" class="nav-item" data-nav>Semana</a>
+        <a href="./perfil.html" class="nav-item" data-nav>Perfil</a>
+      </nav>
+
+      <main class="container page-body finance-page">
+        <section class="summary-grid compact-grid">
+          <article class="card stat-card income">
+            <p>Receitas do mês</p>
+            <strong id="summary-income">R$ 0,00</strong>
+          </article>
+          <article class="card stat-card expense">
+            <p>Despesas do mês</p>
+            <strong id="summary-expenses">R$ 0,00</strong>
+          </article>
+          <article class="card stat-card balance">
+            <p>Saldo do mês</p>
+            <strong id="summary-balance">R$ 0,00</strong>
+          </article>
+        </section>
+
+        <section class="two-column">
+          <article class="card form-card">
+            <div class="panel-header">
+              <h2>Registrar movimentação</h2>
+            </div>
+
+            <form id="transaction-form" class="stack-form" novalidate>
+              <div class="field">
+                <label for="transaction-type">Tipo</label>
+                <select id="transaction-type" name="type">
+                  <option value="receita">Receita</option>
+                  <option value="despesa">Despesa</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="transaction-description">Descrição</label>
+                <input id="transaction-description" name="description" type="text" placeholder="Ex.: Salário" required />
+              </div>
+
+              <div class="field">
+                <label for="transaction-value">Valor</label>
+                <input id="transaction-value" name="value" type="number" min="0.01" step="0.01" placeholder="0,00" required />
+              </div>
+
+              <div class="field">
+                <label for="transaction-category">Categoria</label>
+                <select id="transaction-category" name="category"></select>
+              </div>
+
+              <div class="field">
+                <label for="transaction-date">Data</label>
+                <input id="transaction-date" name="date" type="date" required />
+              </div>
+
+              <button type="submit" class="btn btn-primary full-width">Salvar</button>
+              <p id="transaction-message" class="form-message" aria-live="polite"></p>
+            </form>
+          </article>
+
+          <article class="card chart-card">
+            <div class="panel-header">
+              <h2>Despesas por categoria</h2>
+            </div>
+            <canvas id="expense-chart" aria-label="Gráfico de despesas por categoria"></canvas>
+          </article>
+        </section>
+
+        <section class="card history-card">
+          <div class="panel-header history-header">
+            <h2>Histórico</h2>
+            <div class="filter-row">
+              <select id="filter-month" aria-label="Filtrar por mês"></select>
+              <select id="filter-category" aria-label="Filtrar por categoria"></select>
+              <select id="filter-type" aria-label="Filtrar por tipo">
+                <option value="all">Todos</option>
+                <option value="receita">Receita</option>
+                <option value="despesa">Despesa</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Descrição</th>
+                  <th>Categoria</th>
+                  <th>Tipo</th>
+                  <th>Valor</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="transactions-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="./js/financeiro.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planejamento Semanal | Vida Prática e Financeira</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="stylesheet" href="./css/responsive.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="container app-header-inner">
+          <div>
+            <p class="eyebrow">Planejamento</p>
+            <h1>Minha semana</h1>
+          </div>
+          <button class="btn btn-ghost" data-logout type="button">Sair</button>
+        </div>
+      </header>
+
+      <nav class="bottom-nav" aria-label="Menu principal">
+        <a href="./dashboard.html" class="nav-item" data-nav>Início</a>
+        <a href="./financeiro.html" class="nav-item" data-nav>Finanças</a>
+        <a href="./planejamento.html" class="nav-item active" data-nav>Semana</a>
+        <a href="./perfil.html" class="nav-item" data-nav>Perfil</a>
+      </nav>
+
+      <main class="container page-body">
+        <section class="card task-summary-card">
+          <div class="panel-header">
+            <h2>Indicador semanal</h2>
+          </div>
+          <div class="progress-header">
+            <span>Tarefas: <strong id="task-total">0</strong></span>
+            <span>Concluídas: <strong id="task-finished">0</strong></span>
+            <span>Pendentes: <strong id="task-pending">0</strong></span>
+          </div>
+          <div class="progress-bar" aria-label="Progresso semanal">
+            <span id="task-progress-bar" style="width: 0%"></span>
+          </div>
+          <p class="progress-text"><strong id="task-progress-value">0%</strong> concluído</p>
+        </section>
+
+        <section class="card form-card">
+          <div class="panel-header">
+            <h2>Adicionar tarefa</h2>
+          </div>
+
+          <form id="task-form" class="stack-form" novalidate>
+            <div class="field">
+              <label for="task-title">Tarefa</label>
+              <input id="task-title" name="title" type="text" placeholder="Estudar Python" required />
+            </div>
+
+            <div class="field">
+              <label for="task-date">Data</label>
+              <input id="task-date" name="date" type="date" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary full-width">Adicionar</button>
+            <p id="task-message" class="form-message" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <section class="week-grid" id="week-tasks" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/planejamento.js"></script>
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
