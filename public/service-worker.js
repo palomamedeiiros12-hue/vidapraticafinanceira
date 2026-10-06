@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vida-pratica-financeira-v1';
+const CACHE_NAME = 'vida-pratica-financeira-v2';
 const APP_SHELL = ['./', './index.html', './login.html', './cadastro.html', './dashboard.html', './financeiro.html', './planejamento.html', './perfil.html'];
 
 self.addEventListener('install', (event) => {
