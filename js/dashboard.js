@@ -1,82 +1,78 @@
-import { buildSummary, formatCurrency, getTaskProgress, safeLocalStorageRead } from './core.js';
+import { buildSummary, formatCurrency, getTaskProgress } from './core.js';
+import { getCurrentUser, getTasksByUser, getTransactionsByUser } from './supabase.js';
 
-const STORAGE_KEYS = {
-  session: 'vpf_session',
-  transactions: 'vpf_transactions',
-  tasks: 'vpf_tasks'
-};
-
-function getSessionUser() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.session) || '{}')?.user || null;
-  } catch {
-    return null;
+function showDataError(error) {
+  const message = document.querySelector('#dashboard-message');
+  if (message) {
+    message.textContent = `Não foi possível carregar seus dados: ${error.message}`;
+    message.className = 'form-message error';
   }
 }
 
-function getTransactions(userId) {
-  return safeLocalStorageRead(STORAGE_KEYS.transactions, []).filter((item) => item.user_id === userId);
-}
-
-function getTasks(userId) {
-  return safeLocalStorageRead(STORAGE_KEYS.tasks, []).filter((item) => item.user_id === userId);
-}
-
-function renderDashboard() {
-  const user = getSessionUser();
-  if (!user) return;
-
-  const transactions = getTransactions(user.id);
-  const tasks = getTasks(user.id);
-  const summary = buildSummary(transactions);
-  const progress = getTaskProgress(tasks);
-
-  const weekSummary = document.querySelector('#week-summary');
-  if (weekSummary) {
-    weekSummary.textContent = `${progress.finished} de ${progress.total} tarefas concluídas`;
-  }
-
-  const balance = document.querySelector('#dashboard-balance');
-  if (balance) balance.textContent = formatCurrency(summary.balance);
-
-  const balanceChip = document.querySelector('#dashboard-balance-chip');
-  if (balanceChip) balanceChip.textContent = formatCurrency(summary.balance);
-
-  const income = document.querySelector('#dashboard-income');
-  if (income) income.textContent = formatCurrency(summary.income);
-
-  const expenses = document.querySelector('#dashboard-expenses');
-  if (expenses) expenses.textContent = formatCurrency(summary.expenses);
-
+function renderTaskList(tasks) {
   const taskList = document.querySelector('#dashboard-tasks');
-  const actionsCount = document.querySelector('#dashboard-actions-count');
-  const pendingCount = tasks.filter((task) => task.status !== 'concluida').length;
+  if (!taskList) return;
+  taskList.replaceChildren();
 
-  if (actionsCount) {
-    actionsCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'item' : 'itens'}`;
+  if (!tasks.length) {
+    const item = document.createElement('li');
+    item.className = 'task-item empty-state';
+    item.append(document.createTextNode('Você ainda não tem tarefas para esta semana. '));
+    const link = document.createElement('a');
+    link.href = './planejamento.html';
+    link.className = 'small-btn';
+    link.textContent = 'Adicionar';
+    item.append(link);
+    taskList.append(item);
+    return;
   }
 
-  if (taskList) {
-    if (!tasks.length) {
-      taskList.innerHTML = `
-        <li class="task-item empty-state">
-          <span>Você ainda não tem tarefas para esta semana.</span>
-          <a href="./planejamento.html" class="small-btn">Adicionar</a>
-        </li>
-      `;
-      return;
-    }
+  const upcoming = [...tasks].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 3);
+  upcoming.forEach((task) => {
+    const item = document.createElement('li');
+    item.className = `task-item ${task.status === 'concluida' ? 'completed' : ''}`;
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = task.status === 'concluida';
+    checkbox.disabled = true;
+    const title = document.createElement('span');
+    title.className = 'task-title';
+    title.textContent = task.title;
+    label.append(checkbox, title);
+    const badge = document.createElement('span');
+    badge.className = `task-badge ${task.status === 'concluida' ? 'done' : 'pending'}`;
+    badge.textContent = task.status === 'concluida' ? 'Concluída' : 'Pendente';
+    item.append(label, badge);
+    taskList.append(item);
+  });
+}
 
-    const upcoming = [...tasks].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 3);
-    taskList.innerHTML = upcoming.map((task) => `
-      <li class="task-item ${task.status === 'concluida' ? 'completed' : ''}">
-        <label>
-          <input type="checkbox" ${task.status === 'concluida' ? 'checked' : ''} disabled />
-          <span class="task-title">${task.title}</span>
-        </label>
-        <span class="task-badge ${task.status === 'concluida' ? 'done' : 'pending'}">${task.status === 'concluida' ? 'Concluída' : 'Pendente'}</span>
-      </li>
-    `).join('');
+async function renderDashboard() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return;
+    const [transactions, tasks] = await Promise.all([
+      getTransactionsByUser(user.id),
+      getTasksByUser(user.id)
+    ]);
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const summary = buildSummary(transactions.filter((item) => item.date.startsWith(currentMonth)));
+    const progress = getTaskProgress(tasks);
+
+    const userName = document.querySelector('[data-user-name]');
+    if (userName) userName.textContent = user.name || user.email || 'Usuário';
+    document.querySelector('#week-summary').textContent = `${progress.finished} de ${progress.total} tarefas concluídas`;
+    document.querySelector('#dashboard-balance').textContent = formatCurrency(summary.balance);
+    document.querySelector('#dashboard-balance-chip').textContent = formatCurrency(summary.balance);
+    document.querySelector('#dashboard-income').textContent = formatCurrency(summary.income);
+    document.querySelector('#dashboard-expenses').textContent = formatCurrency(summary.expenses);
+
+    const pendingCount = tasks.filter((task) => task.status !== 'concluida').length;
+    document.querySelector('#dashboard-actions-count').textContent = `${pendingCount} ${pendingCount === 1 ? 'item' : 'itens'}`;
+    renderTaskList(tasks);
+  } catch (error) {
+    showDataError(error);
   }
 }
 

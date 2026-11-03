@@ -1,9 +1,4 @@
-import {
-  signInWithFallback,
-  signUpWithFallback,
-  resetPasswordFallback,
-  getCurrentUser
-} from './supabase.js';
+import { getCurrentUser, isSupabaseConfigured, resetPassword, signIn, signUp } from './supabase.js';
 
 function showMessage(element, text, type = '') {
   if (!element) return;
@@ -11,8 +6,9 @@ function showMessage(element, text, type = '') {
   element.className = `form-message ${type}`.trim();
 }
 
-function saveSession(user) {
-  localStorage.setItem('vpf_session', JSON.stringify({ user, demo: true }));
+function setSubmitting(form, submitting) {
+  const button = form.querySelector('[type="submit"]');
+  if (button) button.disabled = submitting;
 }
 
 function goToDashboard() {
@@ -21,76 +17,115 @@ function goToDashboard() {
 
 const loginForm = document.querySelector('#login-form');
 if (loginForm) {
-  loginForm.addEventListener('submit', (event) => {
+  loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const message = document.querySelector('#login-message');
     const formData = new FormData(loginForm);
     const email = String(formData.get('email') || '').trim();
-    const password = String(formData.get('password') || '').trim();
+    const password = String(formData.get('password') || '');
 
     if (!email || !password) {
-      showMessage(document.querySelector('#login-message'), 'Preencha e-mail e senha.', 'error');
+      showMessage(message, 'Preencha e-mail e senha.', 'error');
       return;
     }
 
-    const response = signInWithFallback({ email, password });
-    if (!response.success) {
-      showMessage(document.querySelector('#login-message'), response.message || 'E-mail ou senha inválidos.', 'error');
-      return;
+    setSubmitting(loginForm, true);
+    try {
+      if (!isSupabaseConfigured()) throw new Error('O acesso às contas ainda não foi configurado. Consulte a documentação do projeto.');
+      await signIn({ email, password });
+      showMessage(message, 'Login realizado com sucesso.', 'success');
+      goToDashboard();
+    } catch (error) {
+      showMessage(message, error.message, 'error');
+    } finally {
+      setSubmitting(loginForm, false);
     }
-
-    saveSession(response.user);
-    showMessage(document.querySelector('#login-message'), 'Login realizado com sucesso.', 'success');
-    setTimeout(goToDashboard, 500);
   });
 
   const createButton = loginForm.querySelector('[data-role="link-create"]');
-  if (createButton) createButton.addEventListener('click', () => window.location.href = './cadastro.html');
+  createButton?.addEventListener('click', () => window.location.href = './cadastro.html');
 
   const resetButton = loginForm.querySelector('[data-role="link-reset"]');
-  if (resetButton) {
-    resetButton.addEventListener('click', () => {
-      const email = document.querySelector('#login-email')?.value?.trim();
-      if (!email) {
-        showMessage(document.querySelector('#login-message'), 'Informe seu e-mail para recuperar a senha.', 'error');
-        return;
-      }
+  resetButton?.addEventListener('click', async () => {
+    const email = document.querySelector('#login-email')?.value?.trim();
+    const message = document.querySelector('#login-message');
+    if (!email) {
+      showMessage(message, 'Informe seu e-mail para recuperar a senha.', 'error');
+      return;
+    }
 
-      const response = resetPasswordFallback({ email });
-      showMessage(document.querySelector('#login-message'), response.message, response.success ? 'success' : 'error');
-    });
-  }
+    resetButton.disabled = true;
+    try {
+      await resetPassword({ email });
+      showMessage(message, 'Enviamos um link para redefinir sua senha. Verifique seu e-mail.', 'success');
+    } catch (error) {
+      showMessage(message, error.message, 'error');
+    } finally {
+      resetButton.disabled = false;
+    }
+  });
 }
 
 const signupForm = document.querySelector('#signup-form');
 if (signupForm) {
-  signupForm.addEventListener('submit', (event) => {
+  signupForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const message = document.querySelector('#signup-message');
     const formData = new FormData(signupForm);
     const name = String(formData.get('name') || '').trim();
     const email = String(formData.get('email') || '').trim();
-    const password = String(formData.get('password') || '').trim();
+    const password = String(formData.get('password') || '');
 
     if (!name || !email || !password) {
-      showMessage(document.querySelector('#signup-message'), 'Preencha todos os campos.', 'error');
+      showMessage(message, 'Preencha todos os campos.', 'error');
       return;
     }
 
-    const response = signUpWithFallback({ name, email, password });
-    if (!response.success) {
-      showMessage(document.querySelector('#signup-message'), response.message, 'error');
+    if (password.length < 8) {
+      showMessage(message, 'A senha deve ter pelo menos 8 caracteres.', 'error');
       return;
     }
 
-    saveSession(response.user);
-    showMessage(document.querySelector('#signup-message'), 'Conta criada com sucesso.', 'success');
-    setTimeout(goToDashboard, 500);
+    setSubmitting(signupForm, true);
+    try {
+      if (!isSupabaseConfigured()) throw new Error('O cadastro de contas ainda não foi configurado. Consulte a documentação do projeto.');
+      const result = await signUp({ name, email, password });
+      if (result.needsEmailConfirmation) {
+        showMessage(message, 'Conta criada. Confirme seu e-mail antes de entrar.', 'success');
+        signupForm.reset();
+        return;
+      }
+
+      showMessage(message, 'Conta criada com sucesso.', 'success');
+      goToDashboard();
+    } catch (error) {
+      showMessage(message, error.message, 'error');
+    } finally {
+      setSubmitting(signupForm, false);
+    }
   });
 
   const loginLink = signupForm.querySelector('[data-role="link-login"]');
-  if (loginLink) loginLink.addEventListener('click', () => window.location.href = './login.html');
+  loginLink?.addEventListener('click', () => window.location.href = './login.html');
 }
 
-const currentUser = getCurrentUser();
-if (currentUser && window.location.pathname.endsWith('login.html')) {
-  goToDashboard();
+async function redirectAuthenticatedUser() {
+  if (!loginForm || !isSupabaseConfigured()) return;
+  try {
+    if (await getCurrentUser()) goToDashboard();
+  } catch (error) {
+    showMessage(document.querySelector('#login-message'), error.message, 'error');
+  }
+}
+
+redirectAuthenticatedUser();
+
+if (!isSupabaseConfigured()) {
+  const setupMessage = 'Cadastro e sincronização precisam ser configurados com as credenciais do Supabase. Veja a seção “Configurar contas e sincronização” no README.';
+  if (loginForm) showMessage(document.querySelector('#login-message'), setupMessage, 'error');
+  const signupMessage = document.querySelector('#signup-message');
+  if (signupMessage) showMessage(signupMessage, setupMessage, 'error');
+  document.querySelector('#login-form [type="submit"]')?.setAttribute('disabled', '');
+  document.querySelector('#signup-form [type="submit"]')?.setAttribute('disabled', '');
+  document.querySelector('[data-role="link-reset"]')?.setAttribute('disabled', '');
 }

@@ -1,6 +1,6 @@
 @media (max-width: 640px) {
   .container {
-    width: min(100% - 20px, 1100px);
+    width: min(calc(100% - 20px), 1100px);
   }
 
   .nav-wrap,
@@ -16,6 +16,13 @@
     padding: 12px 0;
   }
 
+  .app-header-inner {
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 14px 0;
+  }
+
   .hero {
     padding-top: 42px;
   }
@@ -25,7 +32,8 @@
   }
 
   .action-row,
-  .actions {
+  .actions,
+  .nav-actions {
     flex-direction: column;
   }
 
@@ -35,8 +43,10 @@
     width: 100%;
   }
 
-  .history-header {
+  .history-header,
+  .panel-header {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .filter-row {
@@ -46,6 +56,8 @@
 
   .filter-row select {
     flex: 1;
+    min-width: 0;
+    width: 100%;
   }
 
   .task-item {
@@ -56,5 +68,31 @@
   .task-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .summary-grid,
+  .summary-kpis,
+  .profile-grid,
+  .two-column,
+  .profile-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-summary {
+    justify-items: start;
+  }
+
+  .profile-stats {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .bottom-nav {
+    gap: 8px;
+    padding: 10px 8px;
+  }
+
+  .nav-item {
+    max-width: none;
   }
 }

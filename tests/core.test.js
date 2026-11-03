@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateBalance, getTaskProgress, canAccessRecord } from '../js/core.js';
+import { calculateBalance, getTaskProgress } from '../js/core.js';
 
 describe('core math', () => {
   it('calculates net balance correctly', () => {
@@ -30,10 +30,5 @@ describe('core math', () => {
     ];
 
     expect(getTaskProgress(tasks)).toEqual({ total: 4, finished: 2, pending: 2, progress: 50 });
-  });
-
-  it('blocks cross-user access', () => {
-    expect(canAccessRecord('user-a', 'user-b')).toBe(false);
-    expect(canAccessRecord('user-a', 'user-a')).toBe(true);
   });
 });

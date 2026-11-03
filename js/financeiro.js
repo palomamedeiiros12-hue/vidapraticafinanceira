@@ -1,9 +1,5 @@
-import { CATEGORY_OPTIONS, buildSummary, formatCurrency, formatDateBR, safeLocalStorageRead, safeLocalStorageWrite } from './core.js';
-
-const STORAGE_KEYS = {
-  session: 'vpf_session',
-  transactions: 'vpf_transactions'
-};
+import { CATEGORY_OPTIONS, buildSummary, formatCurrency, formatDateBR } from './core.js';
+import { deleteTransaction, getCurrentUser, getTransactionsByUser, saveTransaction } from './supabase.js';
 
 const form = document.querySelector('#transaction-form');
 const typeSelect = document.querySelector('#transaction-type');
@@ -13,15 +9,17 @@ const filterMonth = document.querySelector('#filter-month');
 const filterCategory = document.querySelector('#filter-category');
 const filterType = document.querySelector('#filter-type');
 const tableBody = document.querySelector('#transactions-table-body');
+const message = document.querySelector('#transaction-message');
+const dataMessage = document.querySelector('#finance-data-message');
 let expenseChartInstance = null;
+let currentUser = null;
+let transactionRows = [];
 
-const currentUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.session) || '{}')?.user || null;
-  } catch {
-    return null;
-  }
-};
+function showMessage(element, text, type = '') {
+  if (!element) return;
+  element.textContent = text;
+  element.className = `form-message ${type}`.trim();
+}
 
 function getCategories(type = 'receita') {
   return CATEGORY_OPTIONS[type] || CATEGORY_OPTIONS.receita;
@@ -31,115 +29,115 @@ function populateCategoryOptions(type) {
   categorySelect.innerHTML = getCategories(type).map((category) => `<option value="${category}">${category}</option>`).join('');
 }
 
-function getTransactions() {
-  const user = currentUser();
-  if (!user) return [];
-  return safeLocalStorageRead(STORAGE_KEYS.transactions, []).filter((item) => item.user_id === user.id);
-}
-
-function renderSummary() {
-  const summary = buildSummary(getTransactions());
+function renderSummary(transactions) {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const summary = buildSummary(transactions.filter((item) => item.date.startsWith(currentMonth)));
   document.querySelector('#summary-income').textContent = formatCurrency(summary.income);
   document.querySelector('#summary-expenses').textContent = formatCurrency(summary.expenses);
   document.querySelector('#summary-balance').textContent = formatCurrency(summary.balance);
 }
 
-function renderFilters() {
-  const transactions = getTransactions();
+function renderFilters(transactions) {
+  const selectedMonth = filterMonth.value;
+  const selectedCategory = filterCategory.value;
   const months = [...new Set(transactions.map((item) => item.date.slice(0, 7)))].sort().reverse();
-  const monthOptions = ['<option value="all">Todos os meses</option>']
-    .concat(months.map((month) => `<option value="${month}">${month}</option>`));
-  filterMonth.innerHTML = monthOptions.join('');
+  filterMonth.innerHTML = ['<option value="all">Todos os meses</option>']
+    .concat(months.map((month) => `<option value="${month}">${month}</option>`)).join('');
+  if (months.includes(selectedMonth)) filterMonth.value = selectedMonth;
 
   const categories = [...new Set(transactions.map((item) => item.category))].sort();
-  const categoryOptions = ['<option value="all">Todas</option>']
-    .concat(categories.map((category) => `<option value="${category}">${category}</option>`));
-  filterCategory.innerHTML = categoryOptions.join('');
+  filterCategory.innerHTML = ['<option value="all">Todas</option>']
+    .concat(categories.map((category) => `<option value="${category}">${category}</option>`)).join('');
+  if (categories.includes(selectedCategory)) filterCategory.value = selectedCategory;
 }
 
-function renderTransactions() {
-  const user = currentUser();
-  if (!user) return;
+function appendCell(row, text, className = '') {
+  const cell = document.createElement('td');
+  cell.textContent = text;
+  if (className) cell.className = className;
+  row.append(cell);
+  return cell;
+}
 
-  let transactions = getTransactions();
+function renderTransactions(allTransactions) {
+  let transactions = [...allTransactions];
   const month = filterMonth.value;
   const category = filterCategory.value;
   const type = filterType.value;
 
-  if (month !== 'all') {
-    transactions = transactions.filter((item) => item.date.startsWith(month));
-  }
-
-  if (category !== 'all') {
-    transactions = transactions.filter((item) => item.category === category);
-  }
-
-  if (type !== 'all') {
-    transactions = transactions.filter((item) => item.type === type);
-  }
-
+  if (month !== 'all') transactions = transactions.filter((item) => item.date.startsWith(month));
+  if (category !== 'all') transactions = transactions.filter((item) => item.category === category);
+  if (type !== 'all') transactions = transactions.filter((item) => item.type === type);
   transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+  tableBody.replaceChildren();
 
   if (!transactions.length) {
-    tableBody.innerHTML = '<tr><td colspan="6">Você ainda não registrou movimentações.</td></tr>';
+    const row = document.createElement('tr');
+    const cell = appendCell(row, 'Você ainda não registrou movimentações.');
+    cell.colSpan = 6;
+    tableBody.append(row);
     return;
   }
 
-  tableBody.innerHTML = transactions.map((item) => `
-    <tr>
-      <td>${formatDateBR(item.date)}</td>
-      <td>${item.description}</td>
-      <td>${item.category}</td>
-      <td>${item.type === 'receita' ? 'Receita' : 'Despesa'}</td>
-      <td class="money ${item.type === 'receita' ? 'income' : 'expense'}">${item.type === 'receita' ? '+' : '-'} ${formatCurrency(item.value)}</td>
-      <td>
-        <button class="small-btn" data-edit-id="${item.id}" type="button">Editar</button>
-        <button class="small-btn" data-delete-id="${item.id}" type="button">Excluir</button>
-      </td>
-    </tr>
-  `).join('');
+  transactions.forEach((item) => {
+    const row = document.createElement('tr');
+    appendCell(row, formatDateBR(item.date));
+    appendCell(row, item.description);
+    appendCell(row, item.category);
+    appendCell(row, item.type === 'receita' ? 'Receita' : 'Despesa');
+    appendCell(row, `${item.type === 'receita' ? '+' : '-'} ${formatCurrency(item.value)}`, `money ${item.type === 'receita' ? 'income' : 'expense'}`);
 
-  document.querySelectorAll('[data-edit-id]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const transaction = getTransactions().find((item) => item.id === button.dataset.editId);
-      if (!transaction) return;
-      form.dataset.editId = transaction.id;
-      typeSelect.value = transaction.type;
-      populateCategoryOptions(transaction.type);
-      categorySelect.value = transaction.category;
-      document.querySelector('#transaction-description').value = transaction.description;
-      document.querySelector('#transaction-value').value = transaction.value / 100;
-      document.querySelector('#transaction-date').value = transaction.date;
+    const actions = appendCell(row, '');
+    const editButton = document.createElement('button');
+    editButton.className = 'small-btn';
+    editButton.dataset.editId = item.id;
+    editButton.type = 'button';
+    editButton.textContent = 'Editar';
+    editButton.addEventListener('click', () => {
+      form.dataset.editId = item.id;
+      typeSelect.value = item.type;
+      populateCategoryOptions(item.type);
+      categorySelect.value = item.category;
+      document.querySelector('#transaction-description').value = item.description;
+      document.querySelector('#transaction-value').value = item.value / 100;
+      document.querySelector('#transaction-date').value = item.date;
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  });
 
-  document.querySelectorAll('[data-delete-id]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const id = button.dataset.deleteId;
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'small-btn';
+    deleteButton.dataset.deleteId = item.id;
+    deleteButton.type = 'button';
+    deleteButton.textContent = 'Excluir';
+    deleteButton.addEventListener('click', async () => {
       if (!window.confirm('Deseja excluir esta movimentação?')) return;
-      const transactionsList = safeLocalStorageRead(STORAGE_KEYS.transactions, []).filter((item) => item.id !== id);
-      safeLocalStorageWrite(STORAGE_KEYS.transactions, transactionsList);
-      renderAll();
+      deleteButton.disabled = true;
+      try {
+        await deleteTransaction(item.id);
+        showMessage(message, 'Movimentação excluída.', 'success');
+        await renderAll();
+      } catch (error) {
+        showMessage(message, error.message, 'error');
+        deleteButton.disabled = false;
+      }
     });
+    actions.append(editButton, deleteButton);
+    tableBody.append(row);
   });
 }
 
-function renderChart() {
+function renderChart(transactions) {
   if (!chartCanvas) return;
-
-  const expenses = getTransactions().filter((item) => item.type === 'despesa');
+  const expenses = transactions.filter((item) => item.type === 'despesa');
   const labels = [...new Set(expenses.map((item) => item.category))];
-  const values = labels.map((label) => expenses.filter((item) => item.category === label).reduce((sum, item) => sum + Number(item.value), 0));
+  const values = labels.map((label) => expenses
+    .filter((item) => item.category === label)
+    .reduce((sum, item) => sum + Number(item.value), 0));
 
-  if (expenseChartInstance) {
-    expenseChartInstance.destroy();
-  }
-
+  expenseChartInstance?.destroy();
   if (!labels.length || !values.some((value) => value > 0)) {
     const context = chartCanvas.getContext('2d');
-    if (context) {
-      context.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-    }
+    context?.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
     chartCanvas.setAttribute('data-empty', 'true');
     return;
   }
@@ -154,81 +152,78 @@ function renderChart() {
         backgroundColor: ['#1d4ed8', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#6366f1', '#14b8a6', '#64748b']
       }]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: 'bottom'
-        }
-      }
-    }
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
   });
 }
 
-function renderAll() {
-  renderSummary();
-  renderFilters();
-  renderTransactions();
-  renderChart();
+async function renderAll() {
+  try {
+    transactionRows = await getTransactionsByUser(currentUser.id);
+    showMessage(dataMessage, '');
+    renderSummary(transactionRows);
+    renderFilters(transactionRows);
+    renderTransactions(transactionRows);
+    renderChart(transactionRows);
+  } catch (error) {
+    showMessage(dataMessage, `Não foi possível carregar suas movimentações: ${error.message}`, 'error');
+  }
 }
 
-if (typeSelect) {
-  typeSelect.addEventListener('change', () => populateCategoryOptions(typeSelect.value));
-}
+typeSelect?.addEventListener('change', () => populateCategoryOptions(typeSelect.value));
 
-if (form) {
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const user = currentUser();
-    if (!user) return;
+form?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const description = document.querySelector('#transaction-description').value.trim();
+  const category = categorySelect.value;
+  const value = Number(document.querySelector('#transaction-value').value);
+  const date = document.querySelector('#transaction-date').value;
+  const type = typeSelect.value;
 
-    const description = document.querySelector('#transaction-description').value.trim();
-    const category = categorySelect.value;
-    const value = Number(document.querySelector('#transaction-value').value || 0);
-    const date = document.querySelector('#transaction-date').value;
-    const type = typeSelect.value;
+  if (!description || !category || !date || !Number.isFinite(value) || value <= 0) {
+    showMessage(message, 'Preencha descrição, categoria, data e valor maior que zero.', 'error');
+    return;
+  }
 
-    const message = document.querySelector('#transaction-message');
-
-    if (!description || !category || !date || value <= 0) {
-      message.textContent = 'Preencha descrição, categoria, data e valor maior que zero.';
-      message.className = 'form-message error';
-      return;
-    }
-
-    const payload = {
-      id: form.dataset.editId || crypto.randomUUID(),
-      user_id: user.id,
+  const submitButton = form.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    await saveTransaction({
+      ...(form.dataset.editId ? { id: form.dataset.editId } : {}),
+      user_id: currentUser.id,
       type,
       description,
       category,
       value: Math.round(value * 100),
       date
-    };
-
-    const list = safeLocalStorageRead(STORAGE_KEYS.transactions, []);
-    const nextList = form.dataset.editId
-      ? list.map((item) => item.id === form.dataset.editId ? payload : item)
-      : [...list, payload];
-
-    safeLocalStorageWrite(STORAGE_KEYS.transactions, nextList);
-    message.textContent = 'Movimentação salva com sucesso.';
-    message.className = 'form-message success';
+    });
+    showMessage(message, 'Movimentação salva com sucesso.', 'success');
     form.reset();
     delete form.dataset.editId;
     populateCategoryOptions(typeSelect.value);
-    renderAll();
-  });
-}
+    await renderAll();
+  } catch (error) {
+    showMessage(message, `Não foi possível salvar a movimentação: ${error.message}`, 'error');
+  } finally {
+    submitButton.disabled = false;
+  }
+});
 
 const urlParams = new URLSearchParams(window.location.search);
 const preferredType = urlParams.get('mode');
-if (preferredType) {
-  typeSelect.value = preferredType === 'despesa' ? 'despesa' : 'receita';
-}
+if (preferredType) typeSelect.value = preferredType === 'despesa' ? 'despesa' : 'receita';
 populateCategoryOptions(typeSelect.value);
-renderAll();
+document.querySelector('#transaction-date').value = new Date().toISOString().slice(0, 10);
+filterMonth?.addEventListener('change', () => renderTransactions(transactionRows));
+filterCategory?.addEventListener('change', () => renderTransactions(transactionRows));
+filterType?.addEventListener('change', () => renderTransactions(transactionRows));
 
-filterMonth?.addEventListener('change', renderTransactions);
-filterCategory?.addEventListener('change', renderTransactions);
-filterType?.addEventListener('change', renderTransactions);
+async function initFinancePage() {
+  try {
+    currentUser = await getCurrentUser();
+    if (currentUser) await renderAll();
+  } catch (error) {
+    showMessage(dataMessage, `Não foi possível carregar sua conta: ${error.message}`, 'error');
+  }
+}
+
+initFinancePage();

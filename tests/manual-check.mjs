@@ -1,4 +1,4 @@
-import { calculateBalance, getTaskProgress, canAccessRecord } from '../js/core.js';
+import { calculateBalance, getTaskProgress } from '../js/core.js';
 
 const balance = calculateBalance([
   { type: 'receita', value: 300000 },
@@ -13,8 +13,6 @@ const taskProgress = getTaskProgress([
   { status: 'pendente' }
 ]);
 
-const access = canAccessRecord('user-a', 'user-b');
-
 if (balance !== 150000) {
   throw new Error(`Saldo incorreto: ${balance}`);
 }
@@ -23,10 +21,5 @@ if (JSON.stringify(taskProgress) !== JSON.stringify({ total: 4, finished: 2, pen
   throw new Error(`Progress incorreto: ${JSON.stringify(taskProgress)}`);
 }
 
-if (access !== false) {
-  throw new Error('Acesso cruzado não foi bloqueado');
-}
-
 console.log('BALANCE_OK', balance);
 console.log('TASK_PROGRESS_OK', JSON.stringify(taskProgress));
-console.log('ACCESS_CHECK_OK', access);

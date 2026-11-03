@@ -61,24 +61,6 @@ export function formatDateBR(dateString) {
   return date.toLocaleDateString('pt-BR');
 }
 
-export function safeLocalStorageRead(key, fallback = []) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (error) {
-    return fallback;
-  }
-}
-
-export function safeLocalStorageWrite(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
-
-export function canAccessRecord(recordUserId, currentUserId) {
-  if (!recordUserId || !currentUserId) return false;
-  return String(recordUserId) === String(currentUserId);
-}
-
 export function buildSummary(transactions = []) {
   const income = transactions.filter((tx) => tx.type === 'receita').reduce((sum, tx) => sum + Number(tx.value || 0), 0);
   const expenses = transactions.filter((tx) => tx.type === 'despesa').reduce((sum, tx) => sum + Number(tx.value || 0), 0);

@@ -16,6 +16,7 @@ export default defineConfig({
         'index.html',
         'login.html',
         'cadastro.html',
+        'redefinir-senha.html',
         'dashboard.html',
         'financeiro.html',
         'planejamento.html',

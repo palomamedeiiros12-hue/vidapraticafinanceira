@@ -1,26 +1,20 @@
-import { formatDateBR, getDaysOfWeek, getTaskProgress, safeLocalStorageRead, safeLocalStorageWrite } from './core.js';
+import { getDaysOfWeek, getTaskProgress } from './core.js';
+import { deleteTask, getCurrentUser, getTasksByUser, saveTask } from './supabase.js';
 
-const STORAGE_KEYS = {
-  session: 'vpf_session',
-  tasks: 'vpf_tasks'
-};
+const form = document.querySelector('#task-form');
+const container = document.querySelector('#week-tasks');
+const message = document.querySelector('#task-message');
+const dataMessage = document.querySelector('#task-data-message');
+let currentUser = null;
+let tasks = [];
 
-function currentUser() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.session) || '{}')?.user || null;
-  } catch {
-    return null;
-  }
-}
-
-function getTasks() {
-  const user = currentUser();
-  if (!user) return [];
-  return safeLocalStorageRead(STORAGE_KEYS.tasks, []).filter((task) => task.user_id === user.id);
+function showMessage(element, text, type = '') {
+  if (!element) return;
+  element.textContent = text;
+  element.className = `form-message ${type}`.trim();
 }
 
 function renderProgress() {
-  const tasks = getTasks();
   const progress = getTaskProgress(tasks);
   document.querySelector('#task-total').textContent = progress.total;
   document.querySelector('#task-finished').textContent = progress.finished;
@@ -30,109 +24,128 @@ function renderProgress() {
 }
 
 function renderWeek() {
-  const container = document.querySelector('#week-tasks');
-  if (!container) return;
-
-  const tasks = getTasks();
-  const days = getDaysOfWeek();
-
-  container.innerHTML = days.map((day) => {
+  container.replaceChildren();
+  getDaysOfWeek().forEach((day) => {
+    const dayCard = document.createElement('article');
+    dayCard.className = 'day-card';
+    const heading = document.createElement('h3');
+    heading.textContent = day.label;
+    const list = document.createElement('ul');
     const dayTasks = tasks.filter((task) => task.date === day.key);
-    return `
-      <article class="day-card">
-        <h3>${day.label}</h3>
-        <ul>
-          ${dayTasks.length ? dayTasks.map((task) => `
-            <li class="${task.status === 'concluida' ? 'completed' : ''}">
-              <label class="task-mark">
-                <input type="checkbox" data-toggle-id="${task.id}" ${task.status === 'concluida' ? 'checked' : ''} />
-                <span>${task.title}</span>
-              </label>
-              <div class="task-actions">
-                <button type="button" class="small-btn" data-edit-id="${task.id}">Editar</button>
-                <button type="button" class="small-btn" data-delete-id="${task.id}">Excluir</button>
-              </div>
-            </li>
-          `).join('') : '<li>Você não possui tarefas para este dia.</li>'}
-        </ul>
-      </article>
-    `;
-  }).join('');
 
-  document.querySelectorAll('[data-toggle-id]').forEach((checkbox) => {
-    checkbox.addEventListener('change', (event) => {
-      const taskId = event.target.dataset.toggleId;
-      const list = safeLocalStorageRead(STORAGE_KEYS.tasks, []);
-      const next = list.map((item) => item.id === taskId ? { ...item, status: event.target.checked ? 'concluida' : 'pendente' } : item);
-      safeLocalStorageWrite(STORAGE_KEYS.tasks, next);
-      renderWeek();
-      renderProgress();
-    });
-  });
-
-  document.querySelectorAll('[data-edit-id]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const taskId = button.dataset.editId;
-      const list = getTasks();
-      const task = list.find((item) => item.id === taskId);
-      if (!task) return;
-      document.querySelector('#task-title').value = task.title;
-      document.querySelector('#task-date').value = task.date;
-      document.querySelector('#task-form').dataset.editId = taskId;
-    });
-  });
-
-  document.querySelectorAll('[data-delete-id]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const taskId = button.dataset.deleteId;
-      if (!window.confirm('Deseja excluir esta tarefa?')) return;
-      const list = safeLocalStorageRead(STORAGE_KEYS.tasks, []).filter((item) => item.id !== taskId);
-      safeLocalStorageWrite(STORAGE_KEYS.tasks, list);
-      renderWeek();
-      renderProgress();
-    });
-  });
-}
-
-const form = document.querySelector('#task-form');
-if (form) {
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const user = currentUser();
-    if (!user) return;
-
-    const title = document.querySelector('#task-title').value.trim();
-    const date = document.querySelector('#task-date').value;
-    const message = document.querySelector('#task-message');
-
-    if (!title || !date) {
-      message.textContent = 'Preencha a tarefa e a data.';
-      message.className = 'form-message error';
-      return;
+    if (!dayTasks.length) {
+      const empty = document.createElement('li');
+      empty.textContent = 'Você não possui tarefas para este dia.';
+      list.append(empty);
     }
 
-    const list = safeLocalStorageRead(STORAGE_KEYS.tasks, []);
-    const payload = {
-      id: form.dataset.editId || crypto.randomUUID(),
-      user_id: user.id,
-      title,
-      date,
-      status: 'pendente'
-    };
+    dayTasks.forEach((task) => {
+      const item = document.createElement('li');
+      if (task.status === 'concluida') item.classList.add('completed');
+      const label = document.createElement('label');
+      label.className = 'task-mark';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = task.status === 'concluida';
+      checkbox.addEventListener('change', async () => {
+        checkbox.disabled = true;
+        try {
+          await saveTask({ ...task, status: checkbox.checked ? 'concluida' : 'pendente' });
+          await reloadTasks();
+        } catch (error) {
+          showMessage(dataMessage, `Não foi possível atualizar a tarefa: ${error.message}`, 'error');
+          checkbox.disabled = false;
+          checkbox.checked = task.status === 'concluida';
+        }
+      });
+      const title = document.createElement('span');
+      title.textContent = task.title;
+      label.append(checkbox, title);
 
-    const next = form.dataset.editId
-      ? list.map((item) => item.id === form.dataset.editId ? { ...item, title, date } : item)
-      : [...list, payload];
+      const actions = document.createElement('div');
+      actions.className = 'task-actions';
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'small-btn';
+      editButton.textContent = 'Editar';
+      editButton.addEventListener('click', () => {
+        document.querySelector('#task-title').value = task.title;
+        document.querySelector('#task-date').value = task.date;
+        form.dataset.editId = task.id;
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
 
-    safeLocalStorageWrite(STORAGE_KEYS.tasks, next);
-    message.textContent = 'Tarefa salva com sucesso.';
-    message.className = 'form-message success';
-    form.reset();
-    delete form.dataset.editId;
-    renderWeek();
-    renderProgress();
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'small-btn';
+      deleteButton.textContent = 'Excluir';
+      deleteButton.addEventListener('click', async () => {
+        if (!window.confirm('Deseja excluir esta tarefa?')) return;
+        deleteButton.disabled = true;
+        try {
+          await deleteTask(task.id);
+          await reloadTasks();
+        } catch (error) {
+          showMessage(dataMessage, `Não foi possível excluir a tarefa: ${error.message}`, 'error');
+          deleteButton.disabled = false;
+        }
+      });
+      actions.append(editButton, deleteButton);
+      item.append(label, actions);
+      list.append(item);
+    });
+
+    dayCard.append(heading, list);
+    container.append(dayCard);
   });
 }
 
-renderWeek();
-renderProgress();
+async function reloadTasks() {
+  tasks = await getTasksByUser(currentUser.id);
+  showMessage(dataMessage, '');
+  renderWeek();
+  renderProgress();
+}
+
+form?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const title = document.querySelector('#task-title').value.trim();
+  const date = document.querySelector('#task-date').value;
+  if (!title || !date) {
+    showMessage(message, 'Preencha a tarefa e a data.', 'error');
+    return;
+  }
+
+  const existingTask = tasks.find((task) => task.id === form.dataset.editId);
+  const submitButton = form.querySelector('[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    await saveTask({
+      ...(existingTask ? { id: existingTask.id } : {}),
+      user_id: currentUser.id,
+      title,
+      date,
+      status: existingTask?.status || 'pendente'
+    });
+    showMessage(message, 'Tarefa salva com sucesso.', 'success');
+    form.reset();
+    delete form.dataset.editId;
+    await reloadTasks();
+  } catch (error) {
+    showMessage(message, `Não foi possível salvar a tarefa: ${error.message}`, 'error');
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+async function initPlanningPage() {
+  try {
+    currentUser = await getCurrentUser();
+    if (!currentUser) return;
+    await reloadTasks();
+  } catch (error) {
+    showMessage(dataMessage, `Não foi possível carregar suas tarefas: ${error.message}`, 'error');
+  }
+}
+
+initPlanningPage();

@@ -6,9 +6,8 @@ Aplicação MVP em Vite com HTML, CSS e JavaScript para organizar rotina, contro
 
 - Vite
 - HTML5 + CSS3 + JavaScript ES6+
-- Supabase Auth e PostgreSQL
+- Supabase Auth e PostgreSQL com políticas RLS por usuário
 - Chart.js
-- LocalStorage como fallback para demonstração
 - PWA com manifest e service worker
 
 ## Estrutura
@@ -20,10 +19,11 @@ Aplicação MVP em Vite com HTML, CSS e JavaScript para organizar rotina, contro
 - financeiro.html: finanças e histórico
 - planejamento.html: semana e tarefas
 - perfil.html: conta e edição
+- redefinir-senha.html: recuperação de senha
 - css/style.css: estilos principais
 - css/responsive.css: responsividade
 - js/core.js: utilitários e cálculos
-- js/supabase.js: integração com Supabase + storage local
+- js/supabase.js: autenticação e persistência no Supabase
 - js/auth.js: autenticação
 - js/dashboard.js: dashboard
 - js/financeiro.js: receitas, despesas, histórico
@@ -52,49 +52,27 @@ https://palomamedeiiros12-hue.github.io/vidapraticafinanceira/
 
 O fluxo publica a pasta `dist` e executa os testes antes do build.
 
-## Configuração do Supabase
+## Configurar contas e sincronização
 
-Crie um arquivo `.env` com:
+1. Crie um projeto Supabase e execute [`supabase/schema.sql`](./supabase/schema.sql) no SQL Editor do projeto.
+2. Nas configurações de autenticação do Supabase, defina a URL do site como:
 
-VITE_SUPABASE_URL=seu_url
-VITE_SUPABASE_ANON_KEY=sua_chave_anonima
+   `https://palomamedeiiros12-hue.github.io/vidapraticafinanceira/`
 
-Se as variáveis não existirem, a aplicação usa `localStorage` para manter a experiência funcional em ambiente de demonstração.
+3. Inclua nas URLs de redirecionamento permitidas do Supabase:
 
-## Banco de dados sugerido
+   - `https://palomamedeiiros12-hue.github.io/vidapraticafinanceira/**`
+   - `http://localhost:5173/**` (desenvolvimento local)
 
-```sql
-create table profiles (
-  id uuid primary key default gen_random_uuid(),
-  name text,
-  email text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
+4. No GitHub, em **Settings → Secrets and variables → Actions**, crie os secrets:
 
-create table transactions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
-  type text check (type in ('receita','despesa')),
-  description text,
-  category text,
-  value integer,
-  date date,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
+   - `VITE_SUPABASE_URL`: URL do projeto Supabase.
+   - `VITE_SUPABASE_ANON_KEY`: chave pública/anon do projeto. Nunca use a `service_role` no navegador.
 
-create table tasks (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
-  title text,
-  date date,
-  status text check (status in ('pendente','concluida')),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-```
+5. Para executar localmente, crie `.env` a partir de `.env.example`, preencha os valores do projeto e rode `npm run dev`.
 
-## RLS
+6. Em **Settings → Secrets and variables → Actions** do repositório GitHub, crie os secrets `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` com os mesmos valores do projeto. O workflow usa esses valores para gerar o cliente e interrompe a publicação se estiverem ausentes.
 
-Políticas podem ser configuradas por usuário autenticado para permitir apenas leitura, inserção, atualização e exclusão dos próprios registros.
+Cadastro, login, recuperação de senha, movimentações, tarefas e perfil usam a conta autenticada do Supabase. As políticas Row Level Security em [`supabase/schema.sql`](./supabase/schema.sql) limitam leitura, criação, edição e exclusão de cada registro ao usuário autenticado que o possui. A chave `anon`/publishable é própria para uso no navegador; nunca coloque a chave `service_role` no cliente nem no workflow de build.
+
+Dados de movimentações de versões antigas que existam somente no armazenamento local deste navegador não são sincronizados automaticamente. Eles não são apagados pelo novo fluxo; será necessário copiá-los para a conta após configurá-la.

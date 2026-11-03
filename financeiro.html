@@ -28,6 +28,7 @@
       </nav>
 
       <main class="container page-body finance-page">
+        <p id="finance-data-message" class="form-message" aria-live="polite"></p>
         <section class="summary-grid compact-grid">
           <article class="card stat-card income">
             <p>Receitas do mês</p>
@@ -65,7 +66,7 @@
 
               <div class="field">
                 <label for="transaction-value">Valor</label>
-                <input id="transaction-value" name="value" type="number" min="0.01" step="0.01" placeholder="0,00" required />
+                <input id="transaction-value" name="value" type="number" min="0" step="0.01" value="0" required />
               </div>
 
               <div class="field">

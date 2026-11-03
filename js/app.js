@@ -2,116 +2,55 @@ import {
   formatCurrency,
   formatCurrencySigned,
   buildSummary,
-  getTaskProgress,
-  safeLocalStorageRead,
-  safeLocalStorageWrite,
-  canAccessRecord
+  getTaskProgress
 } from './core.js';
+import { getCurrentUser, isSupabaseConfigured, signOut } from './supabase.js';
 
 window.VPF = {
   formatCurrency,
   formatCurrencySigned,
   buildSummary,
-  getTaskProgress,
-  safeLocalStorageRead,
-  safeLocalStorageWrite,
-  canAccessRecord
+  getTaskProgress
 };
-
-const STORAGE_KEYS = {
-  session: 'vpf_session',
-  users: 'vpf_users',
-  data: 'vpf_data',
-  transactions: 'vpf_transactions',
-  tasks: 'vpf_tasks'
-};
-
-function getSession() {
-  return safeLocalStorageRead(STORAGE_KEYS.session, null);
-}
-
-function setSession(session) {
-  safeLocalStorageWrite(STORAGE_KEYS.session, session);
-}
 
 function isProtectedPage() {
   const path = window.location.pathname.split('/').pop() || 'index.html';
   return ['dashboard.html', 'financeiro.html', 'planejamento.html', 'perfil.html'].includes(path);
 }
 
-function buildDemoUser() {
-  return {
-    id: 'demo-user',
-    name: 'Ana',
-    email: 'ana@vidapf.com'
-  };
+async function guardAccess() {
+  if (!isProtectedPage()) return true;
+  if (!isSupabaseConfigured()) {
+    window.location.replace('./login.html?setup=required');
+    return false;
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    window.location.replace('./login.html');
+    return false;
+  }
+  return true;
 }
 
-function ensureDemoData() {
-  const user = getSession()?.user || buildDemoUser();
-  const transactions = safeLocalStorageRead(STORAGE_KEYS.transactions, []);
-  const tasks = safeLocalStorageRead(STORAGE_KEYS.tasks, []);
-
-  if (!transactions.some((item) => item.user_id === user.id)) {
-    safeLocalStorageWrite(STORAGE_KEYS.transactions, [
-      { id: 'tx-001', user_id: user.id, type: 'receita', description: 'Salário', category: 'Salário', value: 350000, date: new Date().toISOString().slice(0, 10) },
-      { id: 'tx-002', user_id: user.id, type: 'despesa', description: 'Supermercado', category: 'Alimentação', value: 45000, date: new Date().toISOString().slice(0, 10) },
-      { id: 'tx-003', user_id: user.id, type: 'despesa', description: 'Transporte', category: 'Transporte', value: 8000, date: new Date().toISOString().slice(0, 10) }
-    ]);
-  }
-
-  if (!tasks.some((item) => item.user_id === user.id)) {
-    const today = new Date();
-    const nextDate = (offset) => {
-      const date = new Date(today);
-      date.setDate(date.getDate() + offset);
-      return date.toISOString().slice(0, 10);
-    };
-
-    safeLocalStorageWrite(STORAGE_KEYS.tasks, [
-      { id: 'task-001', user_id: user.id, title: 'Estudar Python', date: nextDate(0), status: 'pendente' },
-      { id: 'task-002', user_id: user.id, title: 'Pagar conta', date: nextDate(1), status: 'pendente' },
-      { id: 'task-003', user_id: user.id, title: 'Fazer exercício', date: nextDate(2), status: 'concluida' }
-    ]);
-  }
-
-  const users = safeLocalStorageRead(STORAGE_KEYS.users, []);
-  if (!users.some((entry) => entry.email === user.email)) {
-    users.push({ id: user.id, name: user.name, email: user.email, password: 'demo123' });
-    safeLocalStorageWrite(STORAGE_KEYS.users, users);
-  }
-}
-
-function ensureDefaultSession() {
-  const existingSession = getSession();
-  if (!existingSession) {
-    const demoUser = buildDemoUser();
-    setSession({ user: demoUser, demo: true });
-  }
-  ensureDemoData();
-}
-
-function guardAccess() {
-  if (!isProtectedPage()) return;
-  const session = getSession();
-  if (!session || !session.user) {
-    window.location.href = './login.html';
-  }
-}
-
-function bindGlobalEvents() {
+function bindGlobalEvents(user) {
   const logoutButton = document.querySelector('[data-logout]');
   if (logoutButton) {
-    logoutButton.addEventListener('click', () => {
-      localStorage.removeItem(STORAGE_KEYS.session);
-      window.location.href = './login.html';
+    logoutButton.addEventListener('click', async () => {
+      logoutButton.disabled = true;
+      try {
+        await signOut();
+        window.location.href = './login.html';
+      } catch (error) {
+        logoutButton.disabled = false;
+        window.alert(`Não foi possível sair da conta: ${error.message}`);
+      }
     });
   }
 
   const userName = document.querySelector('[data-user-name]');
-  const session = getSession();
-  if (userName && session?.user) {
-    userName.textContent = session.user.name || session.user.email || 'Usuário';
+  if (userName && user) {
+    userName.textContent = user.name || user.email || 'Usuário';
   }
 }
 
@@ -128,21 +67,31 @@ function handleNavigation() {
 function registerSW() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      navigator.serviceWorker.register('./service-worker.js').catch((error) => {
+        console.error('Não foi possível registrar o service worker.', error);
+      });
     });
   }
 }
 
-function initApp() {
-  ensureDefaultSession();
-  guardAccess();
-  bindGlobalEvents();
+async function initApp() {
+  try {
+    localStorage.removeItem('vpf_users');
+    localStorage.removeItem('vpf_session');
+  } catch (error) {
+    console.error('Não foi possível limpar credenciais antigas do navegador.', error);
+  }
+  const hasAccess = await guardAccess();
+  if (!hasAccess) return;
+  const user = isProtectedPage() ? await getCurrentUser() : null;
+  bindGlobalEvents(user);
   handleNavigation();
   registerSW();
 }
 
-initApp();
-window.VPF.STORAGE_KEYS = STORAGE_KEYS;
-window.VPF.getSession = getSession;
-window.VPF.setSession = setSession;
-window.VPF.clearSession = () => localStorage.removeItem(STORAGE_KEYS.session);
+initApp().catch((error) => {
+  console.error('Não foi possível inicializar a aplicação.', error);
+  if (isProtectedPage()) {
+    window.location.replace('./login.html?setup=required');
+  }
+});

@@ -1,189 +1,241 @@
-import { safeLocalStorageRead, safeLocalStorageWrite, canAccessRecord } from './core.js';
+import { createClient } from '@supabase/supabase-js';
 
-const STORAGE_KEYS = {
-  users: 'vpf_users',
-  transactions: 'vpf_transactions',
-  tasks: 'vpf_tasks',
-  session: 'vpf_session'
-};
-
-const runtimeEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
-const supabaseUrl = runtimeEnv.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = runtimeEnv.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || '';
 
 export const supabase = supabaseUrl && supabaseAnonKey
-  ? window?.supabase
-    ? window.supabase
-    : null
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      persistSession: true
+    }
+  })
   : null;
 
-const normalizeEmail = (email = '') => String(email || '').trim().toLowerCase();
-
-const getUsers = () => safeLocalStorageRead(STORAGE_KEYS.users, []);
-const saveUsers = (users) => safeLocalStorageWrite(STORAGE_KEYS.users, users);
-
-const ensureDemoUser = () => {
-  const users = getUsers();
-  const demoUser = users.find((user) => normalizeEmail(user.email) === 'ana@vidapf.com');
-
-  if (demoUser) {
-    return demoUser;
-  }
-
-  const created = {
-    id: 'demo-user',
-    name: 'Ana',
-    email: 'ana@vidapf.com',
-    password: 'demo123'
-  };
-
-  users.push(created);
-  saveUsers(users);
-  return created;
-};
-
-const getTransactions = () => safeLocalStorageRead(STORAGE_KEYS.transactions, []);
-const saveTransactions = (transactions) => safeLocalStorageWrite(STORAGE_KEYS.transactions, transactions);
-
-const getTasks = () => safeLocalStorageRead(STORAGE_KEYS.tasks, []);
-const saveTasks = (tasks) => safeLocalStorageWrite(STORAGE_KEYS.tasks, tasks);
-
-export function getCurrentUser() {
-  const session = safeLocalStorageRead(STORAGE_KEYS.session, null);
-  return session?.user || null;
+export function isSupabaseConfigured() {
+  return Boolean(supabase);
 }
 
-export function signUpWithFallback({ name, email, password }) {
-  const users = getUsers();
-  const normalizedEmail = normalizeEmail(email);
-  const existingUser = users.find((user) => normalizeEmail(user.email) === normalizedEmail);
-  if (existingUser) {
-    return { success: false, message: 'Este e-mail já está cadastrado.' };
+function requireSupabase() {
+  if (!supabase) {
+    throw new Error('O serviço de contas ainda não foi configurado. Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
   }
 
-  const user = {
-    id: `user-${Date.now()}`,
-    name: String(name || '').trim(),
-    email: normalizedEmail,
+  return supabase;
+}
+
+function raiseIfError(error) {
+  if (error) throw new Error(error.message || 'Não foi possível concluir a operação.');
+}
+
+async function requireCurrentUser() {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.getUser();
+  raiseIfError(error);
+
+  if (!data.user) {
+    throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+  }
+
+  return data.user;
+}
+
+function toAppUser(user) {
+  return {
+    id: user.id,
+    name: user.user_metadata?.name || '',
+    email: user.email || ''
+  };
+}
+
+export async function getCurrentUser() {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.getSession();
+  raiseIfError(error);
+
+  return data.session?.user ? toAppUser(data.session.user) : null;
+}
+
+export async function signUp({ name, email, password }) {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.signUp({
+    email: String(email || '').trim().toLowerCase(),
+    password: String(password || ''),
+    options: {
+      data: { name: String(name || '').trim() }
+    }
+  });
+  raiseIfError(error);
+
+  return {
+    user: data.user ? toAppUser(data.user) : null,
+    needsEmailConfirmation: Boolean(data.user && !data.session)
+  };
+}
+
+export async function signIn({ email, password }) {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.signInWithPassword({
+    email: String(email || '').trim().toLowerCase(),
     password: String(password || '')
-  };
+  });
+  raiseIfError(error);
 
-  users.push(user);
-  saveUsers(users);
-  safeLocalStorageWrite(STORAGE_KEYS.session, { user, demo: true });
-
-  return { success: true, user };
+  if (!data.user) throw new Error('Não foi possível validar esta conta.');
+  return toAppUser(data.user);
 }
 
-export function signInWithFallback({ email, password }) {
-  const users = getUsers();
-  const normalizedEmail = normalizeEmail(email);
-  const demoUser = ensureDemoUser();
-
-  const user = users.find((item) => normalizeEmail(item.email) === normalizedEmail && item.password === String(password || ''));
-  const demoMatch = normalizedEmail === normalizeEmail(demoUser.email) && String(password || '') === demoUser.password;
-
-  if (!user && !demoMatch) {
-    return { success: false, message: 'E-mail ou senha inválidos.' };
-  }
-
-  const activeUser = user || demoUser;
-  safeLocalStorageWrite(STORAGE_KEYS.session, { user: activeUser, demo: true });
-  return { success: true, user: activeUser };
+export async function resetPassword({ email }) {
+  const client = requireSupabase();
+  const redirectTo = new URL('./redefinir-senha.html', window.location.href).href;
+  const { error } = await client.auth.resetPasswordForEmail(String(email || '').trim().toLowerCase(), { redirectTo });
+  raiseIfError(error);
 }
 
-export function resetPasswordFallback({ email }) {
-  const users = getUsers();
-  const exists = users.some((user) => user.email.toLowerCase() === email.toLowerCase());
-  if (!exists) {
-    return { success: false, message: 'E-mail não encontrado.' };
-  }
-
-  return { success: true, message: 'Se o e-mail estiver correto, um link de recuperação será enviado.' };
+export async function setNewPassword(password) {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.updateUser({ password });
+  raiseIfError(error);
+  return Boolean(data.user);
 }
 
-export function getTransactionsByUser(userId) {
-  const transactions = getTransactions().filter((item) => canAccessRecord(item.user_id, userId));
-  return transactions;
+export async function signOut() {
+  const client = requireSupabase();
+  const { error } = await client.auth.signOut();
+  raiseIfError(error);
 }
 
-export function saveTransaction(transaction) {
-  const transactions = getTransactions();
-  const next = transaction.id ? transactions.map((item) => (item.id === transaction.id ? transaction : item)) : [...transactions, transaction];
-  saveTransactions(next);
-  return next;
+export async function getTransactionsByUser(userId) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  if (String(userId) !== user.id) throw new Error('Você não pode acessar os dados de outra conta.');
+
+  const { data, error } = await client
+    .from('transactions')
+    .select('id, user_id, type, description, category, value, date')
+    .eq('user_id', user.id)
+    .order('date', { ascending: false });
+  raiseIfError(error);
+  return data;
 }
 
-export function deleteTransaction(id) {
-  const transactions = getTransactions().filter((item) => item.id !== id);
-  saveTransactions(transactions);
-  return transactions;
+export async function saveTransaction(transaction) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  if (transaction.user_id !== user.id) throw new Error('Você não pode alterar dados de outra conta.');
+
+  const { data, error } = await client
+    .from('transactions')
+    .upsert({
+      ...(transaction.id ? { id: transaction.id } : {}),
+      user_id: user.id,
+      type: transaction.type,
+      description: transaction.description,
+      category: transaction.category,
+      value: transaction.value,
+      date: transaction.date
+    })
+    .select('id, user_id, type, description, category, value, date')
+    .single();
+  raiseIfError(error);
+  return data;
 }
 
-export function getTasksByUser(userId) {
-  return getTasks().filter((task) => canAccessRecord(task.user_id, userId));
+export async function deleteTransaction(id) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  const { data, error } = await client
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle();
+  raiseIfError(error);
+  if (!data) throw new Error('Movimentação não encontrada ou sem permissão para excluí-la.');
 }
 
-export function saveTask(task) {
-  const tasks = getTasks();
-  const next = task.id ? tasks.map((item) => (item.id === task.id ? task : item)) : [...tasks, task];
-  saveTasks(next);
-  return next;
+export async function getTasksByUser(userId) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  if (String(userId) !== user.id) throw new Error('Você não pode acessar os dados de outra conta.');
+
+  const { data, error } = await client
+    .from('tasks')
+    .select('id, user_id, title, date, status')
+    .eq('user_id', user.id)
+    .order('date', { ascending: true });
+  raiseIfError(error);
+  return data;
 }
 
-export function deleteTask(id) {
-  const tasks = getTasks().filter((task) => task.id !== id);
-  saveTasks(tasks);
-  return tasks;
+export async function saveTask(task) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  if (task.user_id !== user.id) throw new Error('Você não pode alterar dados de outra conta.');
+
+  const { data, error } = await client
+    .from('tasks')
+    .upsert({
+      ...(task.id ? { id: task.id } : {}),
+      user_id: user.id,
+      title: task.title,
+      date: task.date,
+      status: task.status
+    })
+    .select('id, user_id, title, date, status')
+    .single();
+  raiseIfError(error);
+  return data;
 }
 
-export function updateProfileName(name, email = null) {
-  const session = safeLocalStorageRead(STORAGE_KEYS.session, null);
-  if (!session?.user) return { success: false, message: 'Usuário não autenticado.' };
+export async function deleteTask(id) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
+  const { data, error } = await client
+    .from('tasks')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id')
+    .maybeSingle();
+  raiseIfError(error);
+  if (!data) throw new Error('Tarefa não encontrada ou sem permissão para excluí-la.');
+}
 
+export async function updateProfileName(name, email) {
+  const client = requireSupabase();
+  const user = await requireCurrentUser();
   const cleanName = String(name || '').trim();
-  const cleanEmail = email ? String(email).trim().toLowerCase() : session.user.email;
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanName) throw new Error('Nome não pode ficar vazio.');
 
-  if (!cleanName) {
-    return { success: false, message: 'Nome não pode ficar vazio.' };
-  }
+  const { error: authError } = await client.auth.updateUser({
+    ...(cleanEmail && cleanEmail !== user.email ? { email: cleanEmail } : {}),
+    data: { ...user.user_metadata, name: cleanName }
+  });
+  raiseIfError(authError);
 
-  const users = getUsers();
-  const duplicated = users.some((user) => user.id !== session.user.id && String(user.email || '').toLowerCase() === cleanEmail);
-  if (duplicated) {
-    return { success: false, message: 'Este e-mail já está sendo usado por outra conta.' };
-  }
+  const { error: profileError } = await client
+    .from('profiles')
+    .upsert({ id: user.id, name: cleanName });
+  raiseIfError(profileError);
 
-  const nextUsers = users.map((user) => (user.id === session.user.id ? { ...user, name: cleanName, email: cleanEmail } : user));
-  saveUsers(nextUsers);
-
-  session.user.name = cleanName;
-  session.user.email = cleanEmail;
-  safeLocalStorageWrite(STORAGE_KEYS.session, session);
-
-  return { success: true, user: session.user };
+  return {
+    user: { id: user.id, name: cleanName, email: user.email },
+    emailChangePending: Boolean(cleanEmail && cleanEmail !== user.email)
+  };
 }
 
-export function updateUserPassword(password) {
-  const session = safeLocalStorageRead(STORAGE_KEYS.session, null);
-  if (!session?.user) return { success: false, message: 'Usuário não autenticado.' };
-
-  const users = getUsers();
-  const nextUsers = users.map((user) => (user.id === session.user.id ? { ...user, password } : user));
-  saveUsers(nextUsers);
-  return { success: true };
-}
-
-export function logoutCurrentUser() {
-  localStorage.removeItem(STORAGE_KEYS.session);
-}
-
-export function getUserById(userId) {
-  return getUsers().find((user) => user.id === userId) || null;
+export async function updateUserPassword(password) {
+  await requireCurrentUser();
+  const client = requireSupabase();
+  const { error } = await client.auth.updateUser({ password });
+  raiseIfError(error);
 }
 
 if (typeof window !== 'undefined') {
   window.VPF = window.VPF || {};
   window.VPF.supabase = supabase;
-  window.VPF.getCurrentUser = getCurrentUser;
 }
